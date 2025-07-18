@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { parse } from 'csv-parse/sync';
-import { supabase, getCurrentUser } from '@/lib/supabase';
+import { getSupabaseClient, getCurrentUser } from '@/lib/supabase';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -125,7 +125,15 @@ export async function POST(request: NextRequest) {
       ? '00000000-0000-0000-0000-000000000001' 
       : workspaceId;
 
-    const { data: uploadRecord, error: uploadError } = await supabase
+    const client = getSupabaseClient();
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Database not available' },
+        { status: 500 }
+      );
+    }
+
+    const { data: uploadRecord, error: uploadError } = await client
       .from('file_uploads')
       .insert({
         workspace_id: dbWorkspaceId,
@@ -165,7 +173,7 @@ export async function POST(request: NextRequest) {
       }));
 
     if (calendarEntries.length > 0) {
-      const { error: calendarError } = await supabase
+      const { error: calendarError } = await client
         .from('calendar_entries')
         .insert(calendarEntries);
 
@@ -217,7 +225,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Get uploads for workspace
-    const { data: uploads, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Database not available' },
+        { status: 500 }
+      );
+    }
+
+    const { data: uploads, error } = await client
       .from('file_uploads')
       .select('*')
       .eq('workspace_id', workspaceId)

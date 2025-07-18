@@ -1,9 +1,34 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Lazy initialization to avoid issues during static generation
+let supabase: any = null;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+const getSupabaseClient = () => {
+  if (!supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    // Skip initialization during static generation
+    if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
+      return null;
+    }
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn('Supabase environment variables not found');
+      return null;
+    }
+    
+    try {
+      supabase = createClient(supabaseUrl, supabaseAnonKey);
+    } catch (error) {
+      console.warn('Failed to create Supabase client:', error);
+      return null;
+    }
+  }
+  return supabase;
+};
+
+export { getSupabaseClient as supabase };
 
 export interface User {
   id: string
@@ -17,7 +42,11 @@ export interface AuthState {
 }
 
 export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase client not initialized');
+  }
+  const { data, error } = await client.auth.signInWithPassword({
     email,
     password,
   })
@@ -27,7 +56,11 @@ export const signIn = async (email: string, password: string) => {
 }
 
 export const signUp = async (email: string, password: string, name?: string) => {
-  const { data, error } = await supabase.auth.signUp({
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase client not initialized');
+  }
+  const { data, error } = await client.auth.signUp({
     email,
     password,
     options: {
@@ -42,18 +75,37 @@ export const signUp = async (email: string, password: string, name?: string) => 
 }
 
 export const signOut = async () => {
-  const { error } = await supabase.auth.signOut()
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase client not initialized');
+  }
+  const { error } = await client.auth.signOut()
   if (error) throw error
 }
 
 export const getCurrentUser = async () => {
-  const { data: { user }, error } = await supabase.auth.getUser()
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase client not initialized');
+  }
+  const { data: { user }, error } = await client.auth.getUser()
   if (error) throw error
   return user
 }
 
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
-  return supabase.auth.onAuthStateChange((event, session) => {
+  const client = getSupabaseClient();
+  if (!client) {
+    // Return a dummy subscription if client is not available
+    return {
+      data: {
+        subscription: {
+          unsubscribe: () => {}
+        }
+      }
+    };
+  }
+  return client.auth.onAuthStateChange((event: any, session: any) => {
     if (session?.user) {
       callback({
         id: session.user.id,

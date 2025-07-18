@@ -1,6 +1,6 @@
 import { openAIService, GenerationOptions } from '@/lib/openai';
 import { ContentDraft, SEOAnalysis, SEORecommendation } from '@/types';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import Levenshtein from 'levenshtein';
 
 export interface SEOAnalysisOptions {
@@ -385,8 +385,14 @@ Title Tag:`;
 
   async getInternalLinks(workspaceId: string): Promise<Array<{ text: string; url: string }>> {
     try {
+      const client = getSupabaseClient();
+      if (!client) {
+        console.warn('Supabase client not available - returning empty internal links');
+        return [];
+      }
+
       // Get published content from the workspace to use as internal link targets
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('content_drafts')
         .select('title, slug')
         .eq('workspace_id', workspaceId)

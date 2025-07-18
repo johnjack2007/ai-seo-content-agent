@@ -1,59 +1,82 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Get environment variables without fallbacks
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-// Debug logging (only in development)
-if (process.env.NODE_ENV === 'development') {
-  console.log('Supabase URL:', supabaseUrl);
-  console.log('Supabase Key length:', supabaseAnonKey?.length || 0);
-}
-
-// Create Supabase client only if environment variables are available
+// Lazy initialization to avoid issues during static generation
 let supabase: any = null;
 
-if (supabaseUrl && supabaseAnonKey) {
-  // Validate URL format
-  if (!supabaseUrl.startsWith('https://')) {
-    console.warn(`Invalid Supabase URL format: ${supabaseUrl}`);
-  } else if (supabaseUrl.includes('placeholder') || supabaseAnonKey.length < 50) {
-    console.warn('Invalid Supabase credentials detected. Please check your environment variables.');
-  } else {
-    try {
-      supabase = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: true,
-        },
-      });
-    } catch (error) {
-      console.warn('Failed to create Supabase client:', error);
-    }
+const createSupabaseClient = () => {
+  // Skip initialization during static generation
+  if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
+    return null;
   }
-} else {
-  console.warn('Supabase environment variables not found - database features will be disabled');
-}
 
-export { supabase };
+  // Get environment variables
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Debug logging (only in development)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Supabase URL:', supabaseUrl);
+    console.log('Supabase Key length:', supabaseAnonKey?.length || 0);
+  }
+
+  // Create Supabase client only if environment variables are available
+  if (supabaseUrl && supabaseAnonKey) {
+    // Validate URL format
+    if (!supabaseUrl.startsWith('https://')) {
+      console.warn(`Invalid Supabase URL format: ${supabaseUrl}`);
+      return null;
+    } else if (supabaseUrl.includes('placeholder') || supabaseAnonKey.length < 50) {
+      console.warn('Invalid Supabase credentials detected. Please check your environment variables.');
+      return null;
+    } else {
+      try {
+        return createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: true,
+          },
+        });
+      } catch (error) {
+        console.warn('Failed to create Supabase client:', error);
+        return null;
+      }
+    }
+  } else {
+    console.warn('Supabase environment variables not found - database features will be disabled');
+    return null;
+  }
+};
+
+// Export a function that gets the Supabase client
+export const getSupabaseClient = () => {
+  if (!supabase) {
+    supabase = createSupabaseClient();
+  }
+  return supabase;
+};
+
+// For backward compatibility
+export { getSupabaseClient as supabase };
 
 // Helper function to get the current user
 export const getCurrentUser = async () => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { user }, error } = await client.auth.getUser();
   if (error) throw error;
   return user;
 };
 
 // Helper function to get user profile
 export const getUserProfile = async (userId: string) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('users')
     .select('*')
     .eq('id', userId)
@@ -65,10 +88,11 @@ export const getUserProfile = async (userId: string) => {
 
 // Helper function to get user workspaces
 export const getUserWorkspaces = async (userId: string) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('workspace_members')
     .select(`
       workspace_id,
@@ -93,12 +117,13 @@ export const checkWorkspacePermission = async (
   workspaceId: string, 
   requiredRole: 'admin' | 'editor' | 'reviewer' | 'viewer' = 'viewer'
 ) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     console.warn('Supabase not available - returning false for permission check');
     return false;
   }
   
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('workspace_members')
     .select('role')
     .eq('user_id', userId)
@@ -128,7 +153,8 @@ export const trackAPIUsage = async (
   success: boolean = true,
   errorMessage?: string
 ) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     console.log('Supabase not available - skipping API usage tracking');
     return;
   }
@@ -143,7 +169,7 @@ export const trackAPIUsage = async (
   }
 
   try {
-    const { error } = await supabase
+    const { error } = await client
       .from('api_usage')
       .insert({
         workspace_id: workspaceId,
@@ -171,10 +197,11 @@ export const trackAPIUsage = async (
 
 // Helper function to get workspace settings
 export const getWorkspaceSettings = async (workspaceId: string) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('workspaces')
     .select('settings')
     .eq('id', workspaceId)
@@ -189,10 +216,11 @@ export const updateWorkspaceSettings = async (
   workspaceId: string, 
   settings: Record<string, any>
 ) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { error } = await supabase
+  const { error } = await client
     .from('workspaces')
     .update({ settings })
     .eq('id', workspaceId);
@@ -207,10 +235,11 @@ export const createWorkspace = async (
   description?: string,
   settings?: Record<string, any>
 ) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('workspaces')
     .insert({
       name,
@@ -231,10 +260,11 @@ export const addUserToWorkspace = async (
   userId: string,
   role: 'admin' | 'editor' | 'reviewer' | 'viewer' = 'viewer'
 ) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { error } = await supabase
+  const { error } = await client
     .from('workspace_members')
     .insert({
       workspace_id: workspaceId,
@@ -250,10 +280,11 @@ export const removeUserFromWorkspace = async (
   workspaceId: string,
   userId: string
 ) => {
-  if (!supabase) {
+  const client = getSupabaseClient();
+  if (!client) {
     throw new Error('Supabase client not initialized - check environment variables');
   }
-  const { error } = await supabase
+  const { error } = await client
     .from('workspace_members')
     .delete()
     .eq('workspace_id', workspaceId)
