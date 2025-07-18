@@ -61,16 +61,18 @@ export class ResearchAgent {
       // Step 2: Execute simplified research pipeline
       const researchData = await this.executeResearchPipeline(topic, keywords, workspaceId, userId);
       
-      // Step 3: Cache the results
-      this.cacheResearch(cacheKey, researchData);
+      // Step 3: Cache the results (only if we have real data)
+      if (researchData.length > 0) {
+        this.cacheResearch(cacheKey, researchData);
+      }
       
       console.log(`Research completed: ${researchData.length} quality sources found`);
       return researchData;
       
     } catch (error) {
       console.error('Research failed:', error);
-      console.log('Using fallback research due to research failure...');
-      return await this.handleResearchFailure(topic, error);
+      console.log('Proceeding without research data - no fake data will be generated');
+      return []; // Return empty array instead of fake data
     }
   }
 
@@ -81,16 +83,16 @@ export class ResearchAgent {
     const allResults = await this.parallelSearch(searchQueries, workspaceId, userId);
     
     if (allResults.length === 0) {
-      console.log('No search results found, using fallback research...');
-      return await this.handleResearchFailure(topic, new Error('No search results found'));
+      console.log('No search results found - proceeding without research data');
+      return []; // Return empty array instead of fake data
     }
     
     // Stage 2: Summarize and filter results
     const researchSummaries = await this.summarizeResults(allResults, topic);
     
     if (researchSummaries.length === 0) {
-      console.log('No quality summaries generated, using fallback research...');
-      return await this.handleResearchFailure(topic, new Error('No quality summaries generated'));
+      console.log('No quality summaries generated - proceeding without research data');
+      return []; // Return empty array instead of fake data
     }
     
     return researchSummaries.slice(0, 5); // Return top 5 summaries
@@ -322,140 +324,16 @@ Focus on extracting insights that would be valuable for creating high-quality, a
 
   // Intelligent fallback research using OpenAI when real research fails
   private async handleResearchFailure(topic: string, error: any): Promise<ResearchSummary[]> {
-    console.log('Research failed, using OpenAI-powered fallback research...');
+    console.log('Research failed - no fallback to mock data allowed');
+    console.error('Research failure details:', error);
     
-    try {
-      const { OpenAI } = await import('openai');
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-
-      const prompt = `You are a senior research analyst and content strategist. Create comprehensive, realistic research data for the topic "${topic}" that would be suitable for generating high-quality business content.
-
-TOPIC: ${topic}
-
-TASK: Generate 3-5 realistic research summaries with the following requirements:
-
-1. Each summary should be based on realistic industry knowledge and current trends
-2. Include specific, believable data points and statistics
-3. Create realistic expert quotes from industry leaders
-4. Focus on actionable insights and practical applications
-5. Ensure the research is relevant to the specific topic
-6. Make the data sound authoritative and credible
-7. Include recent trends and developments related to the topic
-
-RESEARCH REQUIREMENTS:
-- Key points should be specific and actionable
-- Expert quotes should sound authentic and insightful
-- Data points should be realistic and current
-- Focus on business value and practical applications
-- Include both benefits and challenges where appropriate
-- Consider industry-specific insights for the topic
-
-OUTPUT FORMAT (valid JSON only):
-{
-  "research_summaries": [
-    {
-      "title": "Realistic research title related to the topic",
-      "url": "https://realistic-source.com/relevant-article",
-      "key_points": [
-        "Specific, actionable insight about the topic",
-        "Another realistic point with industry context",
-        "Third insight with practical application"
-      ],
-      "expert_quotes": [
-        "Realistic quote from industry expert about the topic",
-        "Another authentic quote with specific insights"
-      ],
-      "data_points": [
-        "Realistic statistic or data point about the topic",
-        "Another believable data point with context"
-      ],
-      "relevance_score": 85,
-      "source_authority": "high|medium|low",
-      "publication_date": "2024-01-15"
-    }
-  ]
-}
-
-Focus on creating research that would genuinely help someone write authoritative content about "${topic}". Make the data realistic, current, and valuable.`;
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        max_tokens: 2000,
-      });
-
-      const result = response.choices[0]?.message?.content;
-      if (!result) {
-        throw new Error('No response from OpenAI for fallback research');
-      }
-
-      // Clean and parse the JSON response
-      const cleanedResult = this.cleanJSONResponse(result);
-      const parsed = JSON.parse(cleanedResult);
-      
-      if (!parsed.research_summaries || !Array.isArray(parsed.research_summaries)) {
-        throw new Error('Invalid research summaries format');
-      }
-
-      // Convert to ResearchSummary format
-      const fallbackResearch: ResearchSummary[] = parsed.research_summaries.map((summary: any) => ({
-        title: summary.title || `Research on ${topic}`,
-        url: summary.url || 'https://research-fallback.com/',
-        key_points: summary.key_points || [],
-        expert_quotes: summary.expert_quotes || [],
-        data_points: summary.data_points || [],
-        relevance_score: summary.relevance_score || 85,
-        source_authority: summary.source_authority || 'medium',
-        publication_date: summary.publication_date || new Date().toISOString().split('T')[0]
-      }));
-
-      console.log(`OpenAI-powered fallback research created with ${fallbackResearch.length} sources`);
-      return fallbackResearch;
-
-    } catch (error) {
-      console.error('OpenAI fallback research failed:', error);
-      console.log('Falling back to basic template research...');
-      
-      // Ultimate fallback to basic template if OpenAI fails
-      return this.createBasicFallbackResearch(topic);
-    }
+    // Return empty array - no mock data should ever be generated
+    // The content generation will proceed with general knowledge instead
+    return [];
   }
 
-  // Basic template fallback as ultimate backup
-  private createBasicFallbackResearch(topic: string): ResearchSummary[] {
-    console.log('Using basic template fallback research...');
-    
-    const fallbackResearch: ResearchSummary[] = [
-      {
-        title: `Comprehensive Guide to ${topic}`,
-        url: 'https://example.com/fallback-research',
-        key_points: [
-          `${topic} is a critical aspect of modern business strategy`,
-          `Companies that implement ${topic} effectively see 25-40% improvement in results`,
-          `Best practices for ${topic} include proper planning and execution`,
-          `The future of ${topic} looks promising with ongoing innovation`,
-          `Industry experts recommend focusing on measurable outcomes when implementing ${topic}`
-        ],
-        expert_quotes: [
-          `"${topic} represents a significant shift in how we approach business challenges"`,
-          `"Organizations that embrace ${topic} are witnessing measurable enhancements"`,
-          `"The key to success with ${topic} is careful planning and execution"`
-        ],
-        data_points: [
-          `Over 60% of businesses are now incorporating ${topic} into their strategies`,
-          `Companies using ${topic} report 25% improvement in efficiency`,
-          `The ${topic} market is expected to grow by 15% annually`
-        ],
-        relevance_score: 85,
-        source_authority: 'Industry Research',
-        publication_date: new Date().toISOString().split('T')[0]
-      }
-    ];
-    
-    console.log('Basic fallback research created with', fallbackResearch.length, 'sources');
-    return fallbackResearch;
-  }
+  // Remove the basic template fallback - no mock data allowed
+  // private createBasicFallbackResearch(topic: string): ResearchSummary[] {
+  //   This method has been removed to prevent mock data generation
+  // }
 } 

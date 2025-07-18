@@ -194,7 +194,7 @@ Write the complete ${content_type} following these guidelines. Ensure the conten
 
   private formatResearchContext(researchSummaries: ResearchSummary[]): string {
     if (researchSummaries.length === 0) {
-      return 'No specific research data available. Use general industry knowledge and best practices.';
+      return 'No specific research data available. Generate content based on general industry knowledge, best practices, and established principles. Focus on providing valuable, accurate information without citing specific sources or making up statistics.';
     }
 
     return researchSummaries.map((summary, index) => {
