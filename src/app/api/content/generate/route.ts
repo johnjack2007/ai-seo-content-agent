@@ -8,6 +8,9 @@ import { IntentClassifierAgent } from '@/agents/IntentClassifierAgent';
 import { TopicSanitizerAgent } from '@/agents/TopicSanitizerAgent';
 import { TopicIdentifierAgent } from '@/agents/TopicIdentifierAgent';
 import { createClient } from '@supabase/supabase-js';
+
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
 // Using the ResearchSummary type from ResearchAgent
 interface ResearchSummary {
   title: string;

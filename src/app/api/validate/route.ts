@@ -3,6 +3,9 @@ import { IntentClassifierAgent } from '@/agents/IntentClassifierAgent';
 import { TopicSanitizerAgent } from '@/agents/TopicSanitizerAgent';
 import { TopicIdentifierAgent } from '@/agents/TopicIdentifierAgent';
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const { topic, userInput } = await request.json();

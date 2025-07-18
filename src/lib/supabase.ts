@@ -4,9 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Debug logging
-console.log('Supabase URL:', supabaseUrl);
-console.log('Supabase Key length:', supabaseAnonKey?.length || 0);
+// Debug logging (only in development)
+if (process.env.NODE_ENV === 'development') {
+  console.log('Supabase URL:', supabaseUrl);
+  console.log('Supabase Key length:', supabaseAnonKey?.length || 0);
+}
 
 // Create Supabase client only if environment variables are available
 let supabase: any = null;
@@ -14,21 +16,22 @@ let supabase: any = null;
 if (supabaseUrl && supabaseAnonKey) {
   // Validate URL format
   if (!supabaseUrl.startsWith('https://')) {
-    throw new Error(`Invalid Supabase URL: ${supabaseUrl}`);
+    console.warn(`Invalid Supabase URL format: ${supabaseUrl}`);
+  } else if (supabaseUrl.includes('placeholder') || supabaseAnonKey.length < 50) {
+    console.warn('Invalid Supabase credentials detected. Please check your environment variables.');
+  } else {
+    try {
+      supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        },
+      });
+    } catch (error) {
+      console.warn('Failed to create Supabase client:', error);
+    }
   }
-  
-  // Check for placeholder values
-  if (supabaseUrl.includes('placeholder') || supabaseAnonKey.length < 50) {
-    throw new Error('Invalid Supabase credentials detected. Please check your environment variables.');
-  }
-  
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  });
 } else {
   console.warn('Supabase environment variables not found - database features will be disabled');
 }

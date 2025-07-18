@@ -4,6 +4,9 @@ import { join } from 'path';
 import { parse } from 'csv-parse/sync';
 import { supabase, getCurrentUser } from '@/lib/supabase';
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // TODO: Re-enable auth check when Supabase auth is properly set up
