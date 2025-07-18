@@ -23,10 +23,10 @@ interface ContentDraft {
 
 interface ContentOptions {
   topic: string;
-  content_type: string;
-  audience: string;
-  tone: string;
-  content_purpose: string;
+  content_type?: string;
+  audience?: string;
+  tone?: string;
+  content_purpose?: string;
   word_count: number;
   seo_keywords: string[];
   research_summaries: ResearchSummary[];
@@ -42,8 +42,14 @@ export class ContentAgent {
   }
 
   async generateContent(options: ContentOptions): Promise<ContentDraft> {
-    console.log(`Generating ${options.content_type} about "${options.topic}" (${options.word_count} words)`);
-    console.log(`Content purpose: ${options.content_purpose}`);
+    // Set defaults for missing values
+    const content_type = options.content_type || 'blog';
+    const audience = options.audience || 'general';
+    const tone = options.tone || 'professional';
+    const content_purpose = options.content_purpose || 'informational';
+    
+    console.log(`Generating ${content_type} about "${options.topic}" (${options.word_count} words)`);
+    console.log(`Content purpose: ${content_purpose}`);
     console.log(`SEO keywords: ${options.seo_keywords.join(', ')}`);
     
     try {
@@ -55,11 +61,11 @@ export class ContentAgent {
 
 CONTEXT:
 - Topic: ${options.topic}
-- Content Type: ${options.content_type}
-- Target Audience: ${options.audience}
-- Tone: ${options.tone}
+- Content Type: ${content_type}
+- Target Audience: ${audience}
+- Tone: ${tone}
 - Target Word Count: ${options.word_count} words (CRITICAL REQUIREMENT - must be EXACTLY ${options.word_count} words ±5%)
-- Content Purpose: ${options.content_purpose}${keywordsContext}
+- Content Purpose: ${content_purpose}${keywordsContext}
 
 RESEARCH INSIGHTS:
 ${researchContext}
@@ -68,7 +74,7 @@ CONTENT REQUIREMENTS:
 1. Create a compelling, SEO-optimized title (50-60 characters) that incorporates the topic and primary keywords naturally
 2. Write engaging, informative content that provides real value about the topic
 3. Integrate research insights naturally with proper attribution: "According to [Source Name], ..." or "Research from [Source Name] shows..."
-4. Use the specified tone throughout (${options.tone})
+4. Use the specified tone throughout (${tone})
 5. If SEO keywords are provided, incorporate them naturally throughout the content (avoid keyword stuffing)
 6. Include specific examples, data points, and expert insights from research
 7. Make the content sound human and natural - vary sentence structure, use conversational language where appropriate
@@ -111,7 +117,7 @@ REQUIRED OUTPUT FORMAT (valid JSON only):
 
 CRITICAL: Before submitting, count the words in your content. It must be between ${Math.floor(options.word_count * 0.95)} and ${Math.floor(options.word_count * 1.05)} words. If it's not, adjust the content length accordingly.
 
-Write the complete ${options.content_type} following these guidelines. Ensure the content is original, valuable, professionally written, meets the exact word count requirement, sounds human, and is optimized for search engines.`;
+Write the complete ${content_type} following these guidelines. Ensure the content is original, valuable, professionally written, meets the exact word count requirement, sounds human, and is optimized for search engines.`;
 
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4',
@@ -171,13 +177,13 @@ Write the complete ${options.content_type} following these guidelines. Ensure th
       console.log(`Content generation completed: ${finalWordCount} words`);
 
       return {
-        title: parsed.title,
+        title: parsed.title || `Comprehensive Guide to ${options.topic}`,
         content: parsed.content,
         seo_score: parsed.seoScore || 75,
         word_count: finalWordCount,
         reading_time: this.calculateReadingTime(parsed.content),
         keywords: options.seo_keywords,
-        meta_description: parsed.metaDescription || ''
+        meta_description: parsed.metaDescription || `Learn about ${options.topic} with expert insights and actionable strategies.`
       };
 
     } catch (error) {
@@ -225,9 +231,18 @@ Relevance Score: ${summary.relevance_score}/100`;
         }
       }
       
-      return JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      
+      // Validate required fields
+      if (!parsed.content || !parsed.title) {
+        console.error(`Invalid ${context} JSON - missing required fields:`, parsed);
+        return null;
+      }
+      
+      return parsed;
     } catch (error) {
       console.error(`Failed to parse ${context} JSON:`, error);
+      console.error('Raw response:', jsonString);
       return null;
     }
   }
