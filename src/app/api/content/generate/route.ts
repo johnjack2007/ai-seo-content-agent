@@ -20,10 +20,18 @@ interface ResearchSummary {
   publication_date?: string;
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create Supabase client only if environment variables are available
+const createSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not found')
+    return null
+  }
+  
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -250,6 +258,61 @@ export async function POST(request: NextRequest) {
       if (workspace_id === 'test-workspace' || workspace_id === 'demo-workspace') {
         console.log('Demo mode: Skipping database save, using local storage');
         const localId = `local-${Date.now()}`;
+        
+        return NextResponse.json({ 
+          success: true, 
+          data: {
+            draft: {
+              id: localId,
+              title: finalTitle,
+              content: {
+                body: optimizedContent,
+                sections: [
+                  {
+                    type: 'introduction',
+                    content: optimizedContent.split('\n\n')[0] || ''
+                  }
+                ],
+                word_count: optimizedContent.split(' ').length
+              },
+              seo_data: {
+                meta_description: finalMetaDescription || '',
+                keywords: seoKeywords,
+                seo_score: finalSeoScore,
+                title: finalTitle
+              },
+              word_count: optimizedContent.split(' ').length,
+              reading_time: Math.ceil(optimizedContent.split(' ').length / 200),
+              humanized: humanizedContent !== contentDraft.content,
+              downloads: {
+                markdown: exportedContent?.markdown ? `/api/content/download/${localId}/markdown` : null,
+                html: exportedContent?.html ? `/api/content/download/${localId}/html` : null,
+                word: exportedContent?.word ? `/api/content/download/${localId}/word` : null,
+                filename: exportedContent?.filename || `${finalTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
+              }
+            },
+            research_count: researchSummaries.length,
+            research_quality: isFallbackResearch ? 'fallback' : 'real-time',
+            seo_score: finalSeoScore,
+            word_count: optimizedContent.split(' ').length,
+            reading_time: Math.ceil(optimizedContent.split(' ').length / 200),
+            humanized: humanizedContent !== contentDraft.content,
+            downloads: {
+              markdown: exportedContent?.markdown ? `/api/content/download/${localId}/markdown` : null,
+              html: exportedContent?.html ? `/api/content/download/${localId}/html` : null,
+              word: exportedContent?.word ? `/api/content/download/${localId}/word` : null,
+              filename: exportedContent?.filename || `${finalTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
+            }
+          }
+        });
+      }
+
+      const supabase = createSupabaseClient();
+      if (!supabase) {
+        console.error('Supabase client not initialized, skipping database save.');
+        // Fallback: return content without database save
+        const localId = `local-${Date.now()}`;
+        console.log('Content draft created locally (database unavailable):', localId);
         
         return NextResponse.json({ 
           success: true, 

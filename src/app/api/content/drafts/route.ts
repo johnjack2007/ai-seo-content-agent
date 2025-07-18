@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create Supabase client only if environment variables are available
+const createSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not found')
+    return null
+  }
+  
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +24,15 @@ export async function GET(request: NextRequest) {
         { error: 'Missing workspace_id' },
         { status: 400 }
       );
+    }
+
+    // Try to create Supabase client
+    const supabase = createSupabaseClient()
+    if (!supabase) {
+      // Return empty drafts if database is not configured
+      return NextResponse.json({
+        drafts: []
+      });
     }
 
     // Convert test workspace IDs to proper UUIDs for database compatibility

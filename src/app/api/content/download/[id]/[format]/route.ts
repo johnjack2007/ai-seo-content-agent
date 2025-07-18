@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { WordExportService } from '@/services/WordExportService';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Create Supabase client only if environment variables are available
+const createSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not found')
+    return null
+  }
+  
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
 
 export async function GET(
   request: NextRequest,
@@ -36,6 +44,15 @@ export async function GET(
         keywords: ['demo', 'content', 'ai']
       };
     } else {
+      // Try to create Supabase client
+      const supabase = createSupabaseClient()
+      if (!supabase) {
+        return NextResponse.json(
+          { error: 'Database not configured' },
+          { status: 503 }
+        )
+      }
+
       const { data, error } = await supabase
         .from('content_drafts')
         .select('*')

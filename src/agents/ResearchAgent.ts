@@ -26,11 +26,18 @@ export class ResearchAgent {
   private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
   constructor() {
-    this.supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    this.serpApiKey = process.env.SERPAPI_KEY!;
+    // Create Supabase client only if environment variables are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    
+    if (supabaseUrl && supabaseAnonKey) {
+      this.supabase = createClient(supabaseUrl, supabaseAnonKey)
+    } else {
+      console.warn('Supabase environment variables not found, database features will be disabled')
+      this.supabase = null
+    }
+    
+    this.serpApiKey = process.env.SERPAPI_KEY || '';
   }
 
   // Enhanced research with intelligent caching and prompt chaining
