@@ -25,19 +25,26 @@ interface ResearchSummary {
 }
 
 export class GenerationAgent {
-  private supabase: any;
+  private supabase: any = null;
 
   constructor() {
-    // Create Supabase client only if environment variables are available
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    
-    if (supabaseUrl && supabaseAnonKey) {
-      this.supabase = createClient(supabaseUrl, supabaseAnonKey)
-    } else {
-      console.warn('Supabase environment variables not found, database features will be disabled')
-      this.supabase = null
+    // No eager initialization - Supabase will be created when needed
+  }
+
+  // Lazy initialization of Supabase client
+  private getSupabaseClient() {
+    if (!this.supabase) {
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (supabaseUrl && supabaseAnonKey) {
+        this.supabase = createClient(supabaseUrl, supabaseAnonKey);
+      } else {
+        console.warn('Supabase environment variables not found, database features will be disabled');
+        this.supabase = null;
+      }
     }
+    return this.supabase;
   }
 
   // Professional content generation with prompt chaining

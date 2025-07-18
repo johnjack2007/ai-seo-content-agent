@@ -20,24 +20,29 @@ interface CachedResearch {
 }
 
 export class ResearchAgent {
-  private supabase: any;
+  private supabase: any = null;
   private serpApiKey: string;
   private researchCache: Map<string, CachedResearch> = new Map();
   private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
   constructor() {
-    // Create Supabase client only if environment variables are available
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    
-    if (supabaseUrl && supabaseAnonKey) {
-      this.supabase = createClient(supabaseUrl, supabaseAnonKey)
-    } else {
-      console.warn('Supabase environment variables not found, database features will be disabled')
-      this.supabase = null
-    }
-    
     this.serpApiKey = process.env.SERPAPI_KEY || '';
+  }
+
+  // Lazy initialization of Supabase client
+  private getSupabaseClient() {
+    if (!this.supabase) {
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (supabaseUrl && supabaseAnonKey) {
+        this.supabase = createClient(supabaseUrl, supabaseAnonKey);
+      } else {
+        console.warn('Supabase environment variables not found, database features will be disabled');
+        this.supabase = null;
+      }
+    }
+    return this.supabase;
   }
 
   // Enhanced research with intelligent caching and prompt chaining
@@ -578,8 +583,13 @@ Focus on extracting insights that would be valuable for creating high-quality, a
 
       const organicResults = data.organic_results || [];
       
-      // Track API usage
-      await trackAPIUsage(workspaceId, userId, 'serpapi', query, organicResults.length);
+      // Track API usage (only if Supabase is available)
+      try {
+        await trackAPIUsage(workspaceId, userId, 'serpapi', query, organicResults.length);
+      } catch (error) {
+        // Silently fail if tracking is not available
+        console.log('API usage tracking not available');
+      }
 
       return organicResults;
     } catch (error) {

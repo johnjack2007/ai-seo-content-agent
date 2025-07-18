@@ -1,34 +1,30 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Lazy initialization to avoid issues during static generation
-let supabase: any = null;
-
-const getSupabaseClient = () => {
-  if (!supabase) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    // Skip initialization during static generation
-    if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
-      return null;
-    }
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('Supabase environment variables not found');
-      return null;
-    }
-    
-    try {
-      supabase = createClient(supabaseUrl, supabaseAnonKey);
-    } catch (error) {
-      console.warn('Failed to create Supabase client:', error);
-      return null;
-    }
+// Create Supabase client only when environment variables are available
+const createSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase environment variables not found');
+    return null;
   }
-  return supabase;
+  
+  try {
+    return createClient(supabaseUrl, supabaseAnonKey);
+  } catch (error) {
+    console.warn('Failed to create Supabase client:', error);
+    return null;
+  }
 };
 
-export { getSupabaseClient as supabase };
+// Export a function that gets the Supabase client
+export const getSupabaseClient = () => {
+  return createSupabaseClient();
+};
+
+// For backward compatibility - this will be null if env vars aren't available
+export const supabase = createSupabaseClient();
 
 export interface User {
   id: string
@@ -44,7 +40,7 @@ export interface AuthState {
 export const signIn = async (email: string, password: string) => {
   const client = getSupabaseClient();
   if (!client) {
-    throw new Error('Supabase client not initialized');
+    throw new Error('Supabase client not initialized - check environment variables');
   }
   const { data, error } = await client.auth.signInWithPassword({
     email,
@@ -58,7 +54,7 @@ export const signIn = async (email: string, password: string) => {
 export const signUp = async (email: string, password: string, name?: string) => {
   const client = getSupabaseClient();
   if (!client) {
-    throw new Error('Supabase client not initialized');
+    throw new Error('Supabase client not initialized - check environment variables');
   }
   const { data, error } = await client.auth.signUp({
     email,
@@ -77,7 +73,7 @@ export const signUp = async (email: string, password: string, name?: string) => 
 export const signOut = async () => {
   const client = getSupabaseClient();
   if (!client) {
-    throw new Error('Supabase client not initialized');
+    throw new Error('Supabase client not initialized - check environment variables');
   }
   const { error } = await client.auth.signOut()
   if (error) throw error
@@ -86,7 +82,8 @@ export const signOut = async () => {
 export const getCurrentUser = async () => {
   const client = getSupabaseClient();
   if (!client) {
-    throw new Error('Supabase client not initialized');
+    console.warn('Supabase client not initialized - returning null for current user');
+    return null;
   }
   const { data: { user }, error } = await client.auth.getUser()
   if (error) throw error
