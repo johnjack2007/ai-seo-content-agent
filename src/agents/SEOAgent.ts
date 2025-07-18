@@ -394,7 +394,7 @@ Title Tag:`;
 
       if (error) throw error;
 
-      return data.map(draft => ({
+      return data.map((draft: { title: string; slug: string }) => ({
         text: draft.title,
         url: `/blog/${draft.slug}` // Assuming this is the URL structure
       }));
