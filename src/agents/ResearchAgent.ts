@@ -45,9 +45,7 @@ export class ResearchAgent {
       return cached;
     }
     
-    // Clear cache for testing
-    this.researchCache.clear();
-    console.log('🔧 TESTING: Cache cleared for testing OpenAI fallback...');
+    // Cache is enabled for production
 
     try {
       // Step 2: Multi-stage research with prompt chaining
