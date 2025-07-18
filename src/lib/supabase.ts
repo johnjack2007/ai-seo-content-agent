@@ -17,6 +17,11 @@ if (supabaseUrl && supabaseAnonKey) {
     throw new Error(`Invalid Supabase URL: ${supabaseUrl}`);
   }
   
+  // Check for placeholder values
+  if (supabaseUrl.includes('placeholder') || supabaseAnonKey.length < 50) {
+    throw new Error('Invalid Supabase credentials detected. Please check your environment variables.');
+  }
+  
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: true,
