@@ -1,49 +1,52 @@
-import { WordExportService } from '../services/WordExportService';
+import { WordExportService } from '@/services/WordExportService';
 
-interface ExportOptions {
-  format: 'markdown' | 'html' | 'word' | 'all';
-  includeMetadata?: boolean;
-  filename?: string;
-  keywords?: string[];
-  metaDescription?: string;
+interface ContentDraft {
+  title: string;
+  content: string;
+  seo_score: number;
+  word_count: number;
+  reading_time: number;
+  keywords: string[];
+  meta_description: string;
 }
 
-interface ExportedContent {
-  markdown?: string;
-  html?: string;
+interface ExportFormats {
+  markdown: string;
+  html: string;
   word?: Buffer;
   filename: string;
 }
 
 export class ExportAgent {
-  
-  // Main export method
-  async exportContent(
-    title: string,
-    content: string,
-    topic: string,
-    options: ExportOptions = { format: 'all' }
-  ): Promise<ExportedContent> {
-    console.log(`Exporting content: ${title}`);
-    
-    const filename = this.generateFilename(title, topic);
-    const result: ExportedContent = { filename };
+  async exportContent(contentDraft: ContentDraft): Promise<ExportFormats> {
+    console.log('Exporting content:', contentDraft.title);
     
     try {
-      if (options.format === 'markdown' || options.format === 'all') {
-        result.markdown = this.convertToMarkdown(title, content, topic, options);
+      // Generate filename
+      const filename = this.generateFilename(contentDraft.title);
+      
+      // Export to Markdown
+      const markdown = this.exportToMarkdown(contentDraft);
+      
+      // Export to HTML
+      const html = this.exportToHTML(contentDraft);
+      
+      // Export to Word (optional)
+      let wordBuffer: Buffer | undefined;
+      try {
+        wordBuffer = await this.exportToWord(contentDraft);
+      } catch (error) {
+        console.warn('Word export failed:', error);
       }
       
-      if (options.format === 'html' || options.format === 'all') {
-        result.html = this.convertToHTML(title, content, topic, options);
-      }
+      console.log('Export completed:', filename);
       
-      if (options.format === 'word' || options.format === 'all') {
-        result.word = await this.convertToWord(title, content, topic, options);
-      }
-      
-      console.log(`Export completed: ${filename}`);
-      return result;
+      return {
+        markdown,
+        html,
+        word: wordBuffer,
+        filename
+      };
       
     } catch (error) {
       console.error('Export failed:', error);
@@ -51,230 +54,111 @@ export class ExportAgent {
     }
   }
 
-  // Convert content to Markdown format
-  private convertToMarkdown(
-    title: string,
-    content: string,
-    topic: string,
-    options: ExportOptions
-  ): string {
-    let markdown = '';
+  private generateFilename(title: string): string {
+    const sanitizedTitle = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
     
-    // Add metadata if requested
-    if (options.includeMetadata) {
-      markdown += this.generateMarkdownMetadata(title, topic);
+    const date = new Date().toISOString().split('T')[0];
+    return `${sanitizedTitle}-${date}`;
+  }
+
+  private exportToMarkdown(contentDraft: ContentDraft): string {
+    const { title, content, meta_description, keywords } = contentDraft;
+    
+    let markdown = `# ${title}\n\n`;
+    
+    // Add meta information
+    if (meta_description) {
+      markdown += `> ${meta_description}\n\n`;
     }
     
-    // Add title
-    markdown += `# ${title}\n\n`;
+    if (keywords && keywords.length > 0) {
+      markdown += `**Keywords:** ${keywords.join(', ')}\n\n`;
+    }
     
-    // Convert content to markdown
-    const markdownContent = this.contentToMarkdown(content);
-    markdown += markdownContent;
-    
-    // Add footer
-    markdown += this.generateMarkdownFooter(topic);
+    // Add content
+    markdown += content;
     
     return markdown;
   }
 
-  // Convert content to HTML format
-  private convertToHTML(
-    title: string,
-    content: string,
-    topic: string,
-    options: ExportOptions
-  ): string {
-    let html = '';
+  private exportToHTML(contentDraft: ContentDraft): string {
+    const { title, content, meta_description, keywords } = contentDraft;
     
-    // Add HTML header
-    html += this.generateHTMLHeader(title, topic);
-    
-    // Add title
-    html += `<h1>${this.escapeHTML(title)}</h1>\n\n`;
-    
-    // Convert content to HTML
-    const htmlContent = this.contentToHTML(content);
-    html += htmlContent;
-    
-    // Add footer
-    html += this.generateHTMLFooter(topic);
-    
-    // Close HTML
-    html += '</article>\n</body>\n</html>';
-    
-    return html;
-  }
-
-  // Convert content to Word document format
-  private async convertToWord(
-    title: string,
-    content: string,
-    topic: string,
-    options: ExportOptions
-  ): Promise<Buffer> {
-    return await WordExportService.exportToWord({
-      title,
-      content,
-      author: 'AI SEO Content Agent',
-      keywords: options.keywords || [topic],
-      metaDescription: options.metaDescription || `Content about ${topic}`
-    });
-  }
-
-  // Generate markdown metadata
-  private generateMarkdownMetadata(title: string, topic: string): string {
-    const date = new Date().toISOString().split('T')[0];
-    return `---
-title: "${title}"
-topic: "${topic}"
-date: "${date}"
-author: "AI SEO Content Agent"
----
-
-`;
-  }
-
-  // Generate markdown footer
-  private generateMarkdownFooter(topic: string): string {
-    return `\n\n---\n\n*This content was generated using AI SEO Content Agent for the topic: ${topic}*\n`;
-  }
-
-  // Generate HTML header
-  private generateHTMLHeader(title: string, topic: string): string {
-    const date = new Date().toISOString().split('T')[0];
-    return `<!DOCTYPE html>
+    let html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${this.escapeHTML(title)}</title>
-    <meta name="description" content="Content about ${this.escapeHTML(topic)}">
-    <meta name="author" content="AI SEO Content Agent">
-    <meta name="date" content="${date}">
+    <title>${title}</title>`;
+    
+    if (meta_description) {
+      html += `
+    <meta name="description" content="${meta_description}">`;
+    }
+    
+    if (keywords && keywords.length > 0) {
+      html += `
+    <meta name="keywords" content="${keywords.join(', ')}">`;
+    }
+    
+    html += `
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        h2 { color: #34495e; margin-top: 30px; }
-        h3 { color: #7f8c8d; }
-        p { margin-bottom: 16px; }
-        ul, ol { margin-bottom: 16px; }
-        li { margin-bottom: 8px; }
-        blockquote { border-left: 4px solid #3498db; padding-left: 20px; margin: 20px 0; font-style: italic; }
-        code { background-color: #f8f9fa; padding: 2px 4px; border-radius: 3px; }
-        pre { background-color: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
-        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ecf0f1; font-size: 0.9em; color: #7f8c8d; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .meta { background: #f9f9f9; padding: 15px; border-left: 4px solid #007cba; margin: 20px 0; }
+        .keywords { color: #666; font-size: 0.9em; }
     </style>
 </head>
 <body>
-<article>
-`;
-  }
-
-  // Generate HTML footer
-  private generateHTMLFooter(topic: string): string {
-    return `\n<div class="footer">
-    <p><em>This content was generated using AI SEO Content Agent for the topic: ${this.escapeHTML(topic)}</em></p>
-</div>
-`;
-  }
-
-  // Convert content to markdown format
-  private contentToMarkdown(content: string): string {
-    // Split content into sections
-    const sections = content.split(/\n(?=#)/);
+    <h1>${title}</h1>`;
     
-    return sections.map(section => {
-      // Convert headers
-      let markdown = section
-        .replace(/^# (.+)$/gm, '# $1')
-        .replace(/^## (.+)$/gm, '## $1')
-        .replace(/^### (.+)$/gm, '### $1');
+    if (meta_description || keywords.length > 0) {
+      html += `
+    <div class="meta">`;
       
-      // Convert lists
-      markdown = markdown
-        .replace(/^• (.+)$/gm, '- $1')
-        .replace(/^(\d+)\. (.+)$/gm, '$1. $2');
+      if (meta_description) {
+        html += `
+        <p><strong>Summary:</strong> ${meta_description}</p>`;
+      }
       
-      // Convert emphasis
-      markdown = markdown
-        .replace(/\*\*(.+?)\*\*/g, '**$1**')
-        .replace(/\*(.+?)\*/g, '*$1*');
+      if (keywords.length > 0) {
+        html += `
+        <p class="keywords"><strong>Keywords:</strong> ${keywords.join(', ')}</p>`;
+      }
       
-      // Convert links
-      markdown = markdown.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '[$1]($2)');
-      
-      return markdown;
-    }).join('\n\n');
-  }
-
-  // Convert content to HTML format
-  private contentToHTML(content: string): string {
-    // Split content into sections
-    const sections = content.split(/\n(?=#)/);
+      html += `
+    </div>`;
+    }
     
-    return sections.map(section => {
-      // Convert headers
-      let html = section
-        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-        .replace(/^### (.+)$/gm, '<h3>$1</h3>');
-      
-      // Convert paragraphs
-      html = html.replace(/^(?!<[h|u|o])(.+)$/gm, '<p>$1</p>');
-      
-      // Convert lists
-      html = html
-        .replace(/^• (.+)$/gm, '<li>$1</li>')
-        .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
-      
-      // Wrap consecutive list items in ul/ol tags
-      html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
-      
-      // Convert emphasis
-      html = html
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>');
-      
-      // Convert links
-      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-      
-      // Clean up empty paragraphs
-      html = html.replace(/<p><\/p>/g, '');
-      
-      return html;
-    }).join('\n\n');
-  }
-
-  // Generate filename
-  private generateFilename(title: string, topic: string): string {
-    const date = new Date().toISOString().split('T')[0];
-    const cleanTitle = title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 50);
+    // Convert content to HTML (basic conversion)
+    const htmlContent = content
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
     
-    return `${cleanTitle}-${date}`;
+    html += `
+    <p>${htmlContent}</p>
+</body>
+</html>`;
+    
+    return html;
   }
 
-  // Escape HTML special characters
-  private escapeHTML(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  // Create download blob for browser download
-  createDownloadBlob(content: string, filename: string, mimeType: string): Blob {
-    return new Blob([content], { type: mimeType });
-  }
-
-  // Get MIME type for format
-  getMimeType(format: 'markdown' | 'html'): string {
-    return format === 'markdown' ? 'text/markdown' : 'text/html';
+  private async exportToWord(contentDraft: ContentDraft): Promise<Buffer> {
+    const { title, content, meta_description, keywords } = contentDraft;
+    
+    const wordData = {
+      title,
+      content,
+      metaDescription: meta_description,
+      keywords,
+      author: 'AI Content Generator'
+    };
+    
+    return await WordExportService.exportToWord(wordData);
   }
 } 

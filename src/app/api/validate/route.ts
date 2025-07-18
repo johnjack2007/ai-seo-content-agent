@@ -1,108 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { IntentClassifierAgent } from '@/agents/IntentClassifierAgent';
-import { TopicSanitizerAgent } from '@/agents/TopicSanitizerAgent';
-import { TopicIdentifierAgent } from '@/agents/TopicIdentifierAgent';
+import { ValidationAgent } from '@/agents/ValidationAgent';
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic, userInput } = await request.json();
+    const body = await request.json();
+    const { topic } = body;
 
-    if (!topic && !userInput) {
-      return NextResponse.json(
-        { error: 'Missing required fields: topic or userInput' },
-        { status: 400 }
-      );
+    if (!topic) {
+      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
     }
 
-    const input = topic || userInput;
-    console.log('Validating input:', input.substring(0, 100) + '...');
+    console.log('Validating topic:', topic);
 
-    // Initialize validation agents
-    const intentClassifier = new IntentClassifierAgent();
-    const topicSanitizer = new TopicSanitizerAgent();
-    const topicIdentifier = new TopicIdentifierAgent();
+    const validationAgent = new ValidationAgent();
+    const validation = await validationAgent.validateInput(topic);
 
-    // Step 1: Intent Classification
-    console.log('Step 1: Classifying intent...');
-    const intentResult = await intentClassifier.classifyIntent(input);
-    
-    if (intentResult.intent === 'OUT_OF_SCOPE') {
-      return NextResponse.json({
-        valid: false,
-        error: intentClassifier.getErrorMessage(intentResult.intent),
-        validationResults: {
-          intent: intentResult,
-          safety: null,
-          topicIdentification: null
-        }
-      });
-    }
-
-    // Step 2: Topic Safety Check
-    console.log('Step 2: Checking topic safety...');
-    const safetyResult = await topicSanitizer.sanitizeTopic(input);
-    
-    if (safetyResult.safety === 'UNSAFE') {
-      return NextResponse.json({
-        valid: false,
-        error: topicSanitizer.getErrorMessage(safetyResult),
-        validationResults: {
-          intent: intentResult,
-          safety: safetyResult,
-          topicIdentification: null
-        }
-      });
-    }
-
-    // Step 3: Topic Identification
-    console.log('Step 3: Identifying topic...');
-    const topicResult = await topicIdentifier.identifyTopic(input);
-
-    // Determine final validation result
-    const isValid = (intentResult.intent === 'BLOG_GENERATION' || intentResult.intent === 'BLOG_IDEATION') && 
-                   safetyResult.safety === 'SAFE';
-
-    const response: {
-      valid: boolean;
-      error: string | null;
-      validationResults: {
-        intent: any;
-        safety: any;
-        topicIdentification: any;
-      };
-      suggestions: any[] | null;
-      extractedTopic: string;
-    } = {
-      valid: isValid,
-      error: null,
-      validationResults: {
-        intent: intentResult,
-        safety: safetyResult,
-        topicIdentification: topicResult
-      },
-      suggestions: topicResult.isVague ? topicResult.suggestions : null,
-      extractedTopic: topicResult.extractedTopic || input
-    };
-
-    // Add error message if topic is vague
-    if (topicResult.isVague && topicResult.suggestions.length > 0) {
-      response.error = topicIdentifier.getSuggestionsMessage(topicResult);
-    }
-
-    console.log('Validation completed:', { valid: isValid, intent: intentResult.intent, safety: safetyResult.safety });
-    return NextResponse.json(response);
+    return NextResponse.json({
+      isValid: validation.isValid,
+      intent: validation.intent,
+      safety: validation.safety,
+      topic: validation.topic,
+      confidence: validation.confidence,
+      error: validation.error,
+      suggestions: validation.suggestions,
+      needsClarification: validation.needsClarification
+    });
 
   } catch (error) {
     console.error('Validation failed:', error);
-    return NextResponse.json(
-      { 
-        error: 'Validation failed: ' + (error as Error).message,
-        valid: false 
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      error: 'Validation failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 } 
